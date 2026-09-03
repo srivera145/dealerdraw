@@ -5,6 +5,7 @@ use Keel\App\Controllers\Admin\CampaignController;
 use Keel\App\Controllers\Admin\PrizeController;
 use Keel\App\Controllers\Admin\WinController;
 use Keel\App\Controllers\Public\ClaimController;
+use Keel\App\Controllers\Webhooks\PlivoStatusController;
 use Keel\App\Controllers\AuthController;
 use Keel\App\Controllers\ActivityController;
 use Keel\App\Controllers\ApiFileController;
@@ -139,3 +140,7 @@ $router->group(['prefix' => '/api/v1', 'middleware' => [ThrottleMiddleware::clas
 });
 
 $router->post('/webhooks/stripe', [StripeWebhookController::class, 'handle']);
+
+// Plivo webhooks sit outside CSRF; each verifies the Plivo V2 signature instead.
+$router->post('/webhooks/plivo/status', [PlivoStatusController::class, 'status']);
+$router->post('/webhooks/plivo/inbound', [PlivoStatusController::class, 'inbound']);

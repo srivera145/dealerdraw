@@ -63,10 +63,13 @@ class WinnerService
         $existing = Win::findForBoardPeriod((int) $board['id'], $period);
 
         if ($existing !== null) {
+            // Re-runs report the same shape as the original award, including
+            // whether the winning square had a claimant.
             return [
-                'status' => 'already_awarded',
+                'status' => empty($existing['claim_id']) ? 'already_awarded_unclaimed' : 'already_awarded',
                 'win_id' => (int) $existing['id'],
                 'code' => (string) $existing['redemption_code'],
+                'claimed' => !empty($existing['claim_id']),
             ];
         }
 
@@ -102,25 +105,22 @@ class WinnerService
             return ['status' => 'square_missing'];
         }
 
-        if (empty($square['claim_id'])) {
-            return [
-                'status' => 'unclaimed',
-                'row_index' => (int) $rowIndex,
-                'col_index' => (int) $colIndex,
-            ];
-        }
-
         $prize = Prize::findForBoardPeriod((int) $board['id'], $period);
 
         if ($prize === null) {
             return ['status' => 'no_prize', 'row_index' => (int) $rowIndex, 'col_index' => (int) $colIndex];
         }
 
+        // An unclaimed winning square still gets a win row, with a null claimant.
+        // The dealer sees it flagged in admin and decides what to do with the
+        // prize; nothing is notified because there is nobody to notify.
+        $claimId = empty($square['claim_id']) ? null : (int) $square['claim_id'];
+
         $awarded = Win::award([
             'board_id' => (int) $board['id'],
             'prize_id' => (int) $prize['id'],
             'square_id' => (int) $square['id'],
-            'claim_id' => (int) $square['claim_id'],
+            'claim_id' => $claimId,
             'scoring_period' => $period,
         ]);
 
@@ -128,14 +128,19 @@ class WinnerService
             return ['status' => 'award_failed'];
         }
 
-        if ($awarded['created']) {
+        if ($awarded['created'] && $claimId !== null) {
             Queue::push(NotifyWinnerJob::class, ['win_id' => (int) $awarded['win']['id']]);
         }
 
+        $status = $claimId === null
+            ? ($awarded['created'] ? 'awarded_unclaimed' : 'already_awarded_unclaimed')
+            : ($awarded['created'] ? 'awarded' : 'already_awarded');
+
         return [
-            'status' => $awarded['created'] ? 'awarded' : 'already_awarded',
+            'status' => $status,
             'win_id' => (int) $awarded['win']['id'],
             'code' => (string) $awarded['win']['redemption_code'],
+            'claimed' => $claimId !== null,
             'row_index' => (int) $rowIndex,
             'col_index' => (int) $colIndex,
         ];
@@ -154,7 +159,13 @@ class WinnerService
 
         $finalStatus = $results['final']['status'] ?? '';
         $finalSettled = $game['status'] === 'final'
-            && in_array($finalStatus, ['awarded', 'already_awarded', 'unclaimed', 'no_prize'], true);
+            && in_array($finalStatus, [
+                'awarded',
+                'already_awarded',
+                'awarded_unclaimed',
+                'already_awarded_unclaimed',
+                'no_prize',
+            ], true);
 
         $nextStatus = $finalSettled ? 'complete' : 'scoring';
 

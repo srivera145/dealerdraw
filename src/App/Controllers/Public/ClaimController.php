@@ -340,16 +340,18 @@ class ClaimController extends Controller
     }
 
     /**
-     * @return array<string, array{row: int, col: int, name: string, prize: string}>
+     * @return array<string, array{row: int, col: int, name: string, claimed: bool, prize: string}>
      */
     private function winnersByPeriod(int $boardId): array
     {
         $statement = Database::connection()->prepare(
-            'SELECT w.scoring_period, s.row_index, s.col_index, c.first_name, c.last_name, p.label
+            // LEFT JOIN: a winning square nobody claimed still shows on the grid.
+            'SELECT w.scoring_period, w.claim_id, s.row_index, s.col_index,
+                    c.first_name, c.last_name, p.label
              FROM wins w
              INNER JOIN squares s ON s.id = w.square_id
-             INNER JOIN claims c ON c.id = w.claim_id
              INNER JOIN prizes p ON p.id = w.prize_id
+             LEFT JOIN claims c ON c.id = w.claim_id
              WHERE w.board_id = ?'
         );
         $statement->execute([$boardId]);
@@ -360,7 +362,14 @@ class ClaimController extends Controller
             $winners[(string) $row['scoring_period']] = [
                 'row' => (int) $row['row_index'],
                 'col' => (int) $row['col_index'],
-                'name' => $this->displayName(['claim_id' => 1, 'first_name' => $row['first_name'], 'last_name' => $row['last_name']]),
+                'name' => empty($row['claim_id'])
+                    ? 'Unclaimed square'
+                    : $this->displayName([
+                        'claim_id' => $row['claim_id'],
+                        'first_name' => $row['first_name'],
+                        'last_name' => $row['last_name'],
+                    ]),
+                'claimed' => !empty($row['claim_id']),
                 'prize' => (string) $row['label'],
             ];
         }

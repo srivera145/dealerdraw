@@ -135,7 +135,7 @@ class SquaresWinnerResolutionFeatureTest extends TestCase
         self::assertSame($jobsAfterFirstPass, $this->countRows('jobs'));
     }
 
-    public function testUnclaimedWinningSquareAwardsNothingAndStaysReRunnable(): void
+    public function testUnclaimedWinningSquareIsRecordedAndStaysReRunnable(): void
     {
         $dealer = $this->createOrganization('Dealer A');
         $campaign = $this->createCampaign((int) $dealer['id']);
@@ -154,8 +154,19 @@ class SquaresWinnerResolutionFeatureTest extends TestCase
 
         $results = WinnerService::resolveBoard($boardId);
 
-        self::assertSame('unclaimed', $results['final']['status']);
-        self::assertSame(0, $this->countRows('wins', 'board_id = ?', [$boardId]));
+        // The square had no claimant, so the win row carries a null claim and is
+        // flagged for the dealer rather than being dropped.
+        self::assertSame('awarded_unclaimed', $results['final']['status']);
+        self::assertSame(1, $this->countRows('wins', 'board_id = ?', [$boardId]));
+        self::assertNull(Win::findForBoardPeriod($boardId, 'final')['claim_id']);
+
+        // Nobody to notify, so nothing is queued.
+        self::assertSame(0, $this->countRows('jobs'));
+
+        // Re-running stays idempotent.
+        $rerun = WinnerService::resolveBoard($boardId);
+        self::assertSame('already_awarded_unclaimed', $rerun['final']['status']);
+        self::assertSame(1, $this->countRows('wins', 'board_id = ?', [$boardId]));
     }
 
     public function testFinalDoesNotPayOutWhileTheGameIsStillInProgress(): void

@@ -397,6 +397,7 @@ abstract class TestCase extends PhpUnitTestCase
             'prize_library',
             'prizes',
             'rate_limits',
+            'sms_opt_outs',
             'squares',
             'subscriptions',
             'users',

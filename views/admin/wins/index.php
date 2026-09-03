@@ -37,6 +37,7 @@ $error = (string) ($error ?? '');
                             <th>Prize</th>
                             <th>Period</th>
                             <th>Game</th>
+                            <th>Notified</th>
                             <th>Status</th>
                             <th></th>
                         </tr>
@@ -44,7 +45,7 @@ $error = (string) ($error ?? '');
                     <tbody>
                         <?php if ($wins === []): ?>
                         <tr>
-                            <td colspan="7" class="p-6">
+                            <td colspan="8" class="p-6">
                                 <div class="empty-state">
                                     <p class="empty-state-title">No winners yet</p>
                                     <p class="empty-state-text">Winners appear here as each scoring period resolves.</p>
@@ -57,8 +58,13 @@ $error = (string) ($error ?? '');
                         <tr>
                             <td class="font-mono font-semibold text-gray-900"><?= htmlspecialchars((string) $win['redemption_code']) ?></td>
                             <td>
+                                <?php if (empty($win['claim_id'])): ?>
+                                <div class="font-medium text-gray-900">Nobody claimed this square</div>
+                                <div class="text-xs text-gray-500">Prize is unawarded - hand out the code at your discretion.</div>
+                                <?php else: ?>
                                 <div class="font-medium text-gray-900"><?= htmlspecialchars((string) $win['first_name'] . ' ' . (string) $win['last_name']) ?></div>
                                 <div class="text-xs text-gray-500"><?= htmlspecialchars((string) $win['email']) ?> &middot; <?= htmlspecialchars((string) $win['phone']) ?></div>
+                                <?php endif; ?>
                             </td>
                             <td>
                                 <div><?= htmlspecialchars((string) $win['prize_label']) ?></div>
@@ -68,6 +74,17 @@ $error = (string) ($error ?? '');
                             <td class="text-xs">
                                 <?= htmlspecialchars((string) $win['away_team']) ?> at <?= htmlspecialchars((string) $win['home_team']) ?><br>
                                 <span class="text-gray-500">square <?= (int) $win['row_index'] ?>-<?= (int) $win['col_index'] ?></span>
+                            </td>
+                            <td class="text-xs">
+                                <?php if (empty($win['claim_id'])): ?>
+                                <span class="badge badge-neutral">unclaimed</span>
+                                <?php else: ?>
+                                <div>sms: <?= htmlspecialchars((string) ($win['sms_status'] ?? 'pending')) ?></div>
+                                <div>email: <?= htmlspecialchars((string) ($win['email_status'] ?? 'pending')) ?></div>
+                                <?php if (!empty($win['notify_error'])): ?>
+                                <div class="text-red-600"><?= htmlspecialchars((string) $win['notify_error']) ?></div>
+                                <?php endif; ?>
+                                <?php endif; ?>
                             </td>
                             <td>
                                 <?php if (empty($win['redeemed_at'])): ?>
