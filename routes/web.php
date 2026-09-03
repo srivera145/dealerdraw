@@ -1,5 +1,10 @@
 <?php
 
+use Keel\App\Controllers\Admin\BoardController;
+use Keel\App\Controllers\Admin\CampaignController;
+use Keel\App\Controllers\Admin\PrizeController;
+use Keel\App\Controllers\Admin\WinController;
+use Keel\App\Controllers\Public\ClaimController;
 use Keel\App\Controllers\AuthController;
 use Keel\App\Controllers\ActivityController;
 use Keel\App\Controllers\ApiFileController;
@@ -52,6 +57,13 @@ $router->group(['middleware' => [CsrfMiddleware::class]], function ($router) use
 
     $router->post('/logout', [AuthController::class, 'logout']);
 
+    // Public claim pages. Tenancy is resolved from the campaign slug only.
+    $router->group(['prefix' => '/p', 'middleware' => [ThrottleMiddleware::class]], function ($router) {
+        $router->get('/{slug}', [ClaimController::class, 'show']);
+        $router->get('/{slug}/board', [ClaimController::class, 'boardState']);
+        $router->post('/{slug}/claim', [ClaimController::class, 'claim']);
+    });
+
     if ($multiTenancyEnabled) {
         $router->get('/invite/accept', [OrganizationController::class, 'acceptInvite']);
     }
@@ -92,6 +104,32 @@ $router->group(['middleware' => [CsrfMiddleware::class]], function ($router) use
             $router->post('/billing/portal', [BillingController::class, 'portal']);
             $router->post('/files', [FileController::class, 'store']);
             $router->get('/files/{id}', [FileController::class, 'show']);
+
+            // Dealer admin. Every action below resolves the tenant from the signed-in
+            // user and scopes its queries to it.
+            $router->group(['prefix' => '/admin'], function ($router) {
+                $router->get('/campaigns', [CampaignController::class, 'index']);
+                $router->get('/campaigns/create', [CampaignController::class, 'create']);
+                $router->post('/campaigns', [CampaignController::class, 'store']);
+                $router->get('/campaigns/{id}/edit', [CampaignController::class, 'edit']);
+                $router->post('/campaigns/{id}', [CampaignController::class, 'update']);
+
+                $router->get('/campaigns/{id}/boards/create', [BoardController::class, 'create']);
+                $router->post('/campaigns/{id}/boards', [BoardController::class, 'store']);
+                $router->get('/boards/{id}/edit', [BoardController::class, 'edit']);
+                $router->post('/boards/{id}', [BoardController::class, 'update']);
+                $router->post('/boards/{id}/lock', [BoardController::class, 'lock']);
+                $router->post('/boards/{id}/scores', [BoardController::class, 'updateScores']);
+                $router->get('/boards/{id}/claims', [BoardController::class, 'claims']);
+                $router->get('/boards/{id}/claims.csv', [BoardController::class, 'claimsCsv']);
+
+                $router->post('/boards/{id}/prizes', [PrizeController::class, 'store']);
+                $router->post('/boards/{id}/prizes/{period}/delete', [PrizeController::class, 'destroy']);
+                $router->post('/prize-library/{id}/delete', [PrizeController::class, 'destroyLibraryItem']);
+
+                $router->get('/wins', [WinController::class, 'index']);
+                $router->post('/wins/{id}/redeem', [WinController::class, 'redeem']);
+            });
         });
     });
 });

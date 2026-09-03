@@ -380,18 +380,27 @@ abstract class TestCase extends PhpUnitTestCase
 
     private function truncateApplicationTables(): void
     {
+        // campaign_types is reference data seeded by migration, so it is left alone.
         $tables = [
             'activity_log',
             'api_tokens',
             'auth_tokens',
+            'boards',
+            'campaigns',
+            'claims',
             'failed_jobs',
             'files',
+            'games',
             'jobs',
             'organization_invites',
             'organizations',
+            'prize_library',
+            'prizes',
             'rate_limits',
+            'squares',
             'subscriptions',
             'users',
+            'wins',
         ];
 
         $connection = Database::connection();

@@ -32,13 +32,13 @@ class SyncScoresJob implements Job
     }
 
     /**
-     * Queues a run unless one is already waiting, so cron and an in-flight chain
-     * cannot stack up two pollers against the same feed.
+     * Queues a run unless one is already queued or running, so cron and an
+     * in-flight chain cannot stack up two pollers against the same feed.
      */
     public static function ensureScheduled(int $delaySeconds = 0): bool
     {
         $statement = Database::connection()->prepare(
-            'SELECT 1 FROM jobs WHERE job_class = ? AND reserved_at IS NULL LIMIT 1'
+            'SELECT 1 FROM jobs WHERE job_class = ? LIMIT 1'
         );
         $statement->execute([self::class]);
 

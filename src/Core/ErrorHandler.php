@@ -18,15 +18,25 @@ class ErrorHandler
         $title = $status === 404 ? 'Page Not Found' : 'Server Error';
         $template = $status === 404 ? 'errors.404' : 'errors.500';
 
+        // Buffered and handed to Response so error pages honour capture mode the
+        // same way every other response does.
+        $bufferLevel = ob_get_level();
+
         try {
+            ob_start();
             View::render($template, [
                 'title' => $title,
                 'exception' => $exception,
             ]);
+            $body = (string) ob_get_clean();
         } catch (\Throwable $viewException) {
-            echo $status === 404 ? 'Page not found' : 'Server error';
+            while (ob_get_level() > $bufferLevel) {
+                ob_end_clean();
+            }
+
+            $body = $status === 404 ? 'Page not found' : 'Server error';
         }
 
-        exit;
+        Response::raw($body, $status, ['Content-Type' => 'text/html; charset=utf-8']);
     }
 }

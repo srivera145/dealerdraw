@@ -16,6 +16,15 @@
             <p class="text-sm text-gray-500">Signed in as</p>
             <p class="text-base font-medium text-gray-900"><?= htmlspecialchars($user['email'] ?? '') ?></p>
         </div>
+
+        <div class="card mt-6 rounded-xl">
+            <h2 class="text-lg font-semibold text-gray-900">Promotional games</h2>
+            <p class="mt-1 text-sm text-gray-500">Run football squares boards and hand out redemption codes.</p>
+            <div class="mt-4 flex flex-wrap gap-2">
+                <a href="/admin/campaigns" class="btn btn-primary btn-sm">Campaigns</a>
+                <a href="/admin/wins" class="btn btn-secondary btn-sm">Winners</a>
+            </div>
+        </div>
     </div>
 </body>
 </html>

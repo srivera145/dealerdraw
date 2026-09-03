@@ -1,0 +1,552 @@
+/*
+ * DealerDraw public claim page.
+ *
+ * Mobile-first and self-contained: this file owns the whole page so a dealer's
+ * branding lands predictably no matter what the app bundle sets. The two values
+ * that vary per dealer arrive as custom properties on .claim-page, injected from
+ * the campaign record; everything below derives from them.
+ */
+
+.claim-page {
+	/* Overridden inline from the campaign. These are the unbranded defaults. */
+	--dealer-brand: #111827;
+	--dealer-brand-contrast: #ffffff;
+
+	--board-bg: #f4f5f7;
+	--board-surface: #ffffff;
+	--board-ink: #111827;
+	--board-muted: #5b6472;
+	--board-line: #d6dae1;
+	--board-taken: #eceef2;
+	--board-taken-ink: #626b79;
+	--board-mine: #d8f3e6;
+	--board-mine-line: #12a06a;
+	--board-winner: #fbbf24;
+	--board-danger: #b42318;
+	--board-danger-bg: #fef3f2;
+	--board-ok: #067647;
+	--board-ok-bg: #ecfdf3;
+
+	/* Tap-target floor. See the grid sizing note further down. */
+	--square-min: 32px;
+	--axis-size: 28px;
+
+	margin: 0;
+	padding: 0;
+	background: var(--board-bg);
+	color: var(--board-ink);
+	font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+	font-size: 16px;
+	line-height: 1.5;
+	-webkit-text-size-adjust: 100%;
+}
+
+.claim-page *,
+.claim-page *::before,
+.claim-page *::after {
+	box-sizing: border-box;
+}
+
+.claim-shell {
+	max-width: 640px;
+	margin: 0 auto;
+	padding: 16px 8px 48px;
+}
+
+.claim-card {
+	background: var(--board-surface);
+	border: 1px solid var(--board-line);
+	border-radius: 14px;
+	padding: 16px;
+	margin-bottom: 16px;
+}
+
+.claim-card__title {
+	margin: 0 0 4px;
+	font-size: 1.0625rem;
+	font-weight: 700;
+}
+
+.claim-card__note {
+	margin: 0;
+	color: var(--board-muted);
+	font-size: 0.8125rem;
+}
+
+/* ---------------------------------------------------------------- header -- */
+
+.claim-header {
+	text-align: center;
+	padding: 8px 8px 16px;
+}
+
+.claim-logo {
+	display: block;
+	max-width: 200px;
+	max-height: 72px;
+	width: auto;
+	height: auto;
+	margin: 0 auto 12px;
+}
+
+/* No logo on file: the dealer's colour still anchors the page. */
+.claim-header--plain {
+	border-top: 4px solid var(--dealer-brand);
+	border-radius: 14px 14px 0 0;
+	padding-top: 20px;
+}
+
+.claim-title {
+	margin: 0;
+	font-size: 1.5rem;
+	line-height: 1.25;
+	font-weight: 800;
+	letter-spacing: -0.01em;
+}
+
+.claim-matchup {
+	margin: 8px 0 0;
+	color: var(--board-muted);
+	font-size: 0.9375rem;
+}
+
+/* Rendered on every board, above the grid, with no configuration behind it. */
+.claim-disclosure {
+	margin: 0 0 16px;
+	padding: 12px 14px;
+	background: var(--board-surface);
+	border: 2px solid var(--dealer-brand);
+	border-radius: 12px;
+	text-align: center;
+	font-size: 1rem;
+	font-weight: 700;
+}
+
+/* ---------------------------------------------------------------- alerts -- */
+
+.claim-alert {
+	margin: 0 0 16px;
+	padding: 12px 14px;
+	border-radius: 12px;
+	border: 1px solid transparent;
+	font-size: 0.9375rem;
+}
+
+.claim-alert--ok {
+	background: var(--board-ok-bg);
+	border-color: var(--board-ok);
+	color: var(--board-ok);
+}
+
+.claim-alert--error {
+	background: var(--board-danger-bg);
+	border-color: var(--board-danger);
+	color: var(--board-danger);
+}
+
+.claim-alert__detail {
+	display: block;
+	margin-top: 4px;
+	font-size: 0.8125rem;
+	font-weight: 600;
+}
+
+.claim-alert[hidden] {
+	display: none;
+}
+
+/* ------------------------------------------------------------------ grid -- */
+
+.board-head {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: baseline;
+	justify-content: space-between;
+	gap: 8px;
+	margin-bottom: 10px;
+}
+
+.board-counter {
+	margin: 0;
+	color: var(--board-muted);
+	font-size: 0.8125rem;
+	font-variant-numeric: tabular-nums;
+}
+
+/*
+ * Sizing at 375px: shell padding leaves 359px. The axis column is fixed at
+ * 28px, so each of the ten squares gets (359 - 28) / 10 = 33.1px of width and
+ * a 34px min-height - both above the 32px floor. Below ~320px the table hits
+ * its min-width and the wrapper scrolls instead of shrinking the targets.
+ */
+.board-scroll {
+	overflow-x: auto;
+	-webkit-overflow-scrolling: touch;
+}
+
+.board-grid {
+	width: 100%;
+	min-width: calc(var(--axis-size) + (var(--square-min) * 10));
+	table-layout: fixed;
+	border-collapse: collapse;
+}
+
+.board-grid col.board-grid__axis-col {
+	width: var(--axis-size);
+}
+
+.board-grid th {
+	padding: 0;
+	font-size: 0.8125rem;
+	font-weight: 700;
+	color: var(--board-muted);
+	font-variant-numeric: tabular-nums;
+	height: 24px;
+}
+
+/* Pre-lock the axis headers are present but empty - the digits do not exist yet. */
+.board-grid th:empty::after {
+	content: "";
+}
+
+.board-grid td {
+	padding: 1px;
+}
+
+.square {
+	position: relative;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 100%;
+	min-width: var(--square-min);
+	min-height: 34px;
+	padding: 1px;
+	border: 1px solid var(--board-line);
+	border-radius: 6px;
+	background: var(--board-surface);
+	color: var(--board-ink);
+	font-size: 9px;
+	line-height: 1.05;
+	text-align: center;
+	overflow: hidden;
+	cursor: pointer;
+	-webkit-tap-highlight-color: transparent;
+	touch-action: manipulation;
+}
+
+.square input {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	opacity: 0;
+	margin: 0;
+	pointer-events: none;
+}
+
+.square:focus-within {
+	outline: 3px solid var(--dealer-brand);
+	outline-offset: 1px;
+	z-index: 1;
+}
+
+.square--selected {
+	background: var(--dealer-brand);
+	border-color: var(--dealer-brand);
+	color: var(--dealer-brand-contrast);
+	font-weight: 700;
+}
+
+.square--taken {
+	background: var(--board-taken);
+	border-color: var(--board-line);
+	color: var(--board-taken-ink);
+	cursor: not-allowed;
+}
+
+.square--mine {
+	background: var(--board-mine);
+	border-color: var(--board-mine-line);
+	color: #05603a;
+	font-weight: 700;
+}
+
+.square--winner {
+	background: var(--board-winner);
+	border-color: #b45309;
+	color: #422006;
+	font-weight: 800;
+}
+
+/* Flashed on a square that was claimed by someone else mid-submit. */
+.square--conflict {
+	animation: square-conflict 1.2s ease-out 2;
+}
+
+@keyframes square-conflict {
+	0%,
+	100% {
+		box-shadow: 0 0 0 0 rgba(180, 35, 24, 0);
+	}
+	40% {
+		box-shadow: 0 0 0 3px rgba(180, 35, 24, 0.85);
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.square--conflict {
+		animation: none;
+		box-shadow: 0 0 0 3px rgba(180, 35, 24, 0.85);
+	}
+}
+
+.board-legend {
+	margin: 10px 0 0;
+	color: var(--board-muted);
+	font-size: 0.75rem;
+}
+
+/* ------------------------------------------------------------ claim form -- */
+
+.claim-fields[hidden] {
+	display: none;
+}
+
+.field-grid {
+	display: grid;
+	gap: 12px;
+	margin-top: 12px;
+}
+
+.field label {
+	display: block;
+	margin-bottom: 4px;
+	font-size: 0.8125rem;
+	font-weight: 600;
+}
+
+.field input[type="text"],
+.field input[type="email"],
+.field input[type="tel"] {
+	width: 100%;
+	/* 16px keeps iOS Safari from zooming the viewport on focus. */
+	font-size: 16px;
+	padding: 11px 12px;
+	border: 1px solid var(--board-line);
+	border-radius: 10px;
+	background: var(--board-surface);
+	color: var(--board-ink);
+}
+
+.field input:focus {
+	outline: 2px solid var(--dealer-brand);
+	outline-offset: 1px;
+	border-color: var(--dealer-brand);
+}
+
+.consent {
+	margin: 16px 0 0;
+	padding: 0;
+	border: 0;
+}
+
+.consent legend {
+	padding: 0;
+	font-size: 0.8125rem;
+	font-weight: 600;
+}
+
+.consent__option {
+	display: flex;
+	align-items: flex-start;
+	gap: 10px;
+	margin-top: 10px;
+	font-size: 0.8125rem;
+	color: var(--board-muted);
+	cursor: pointer;
+}
+
+.consent__option input {
+	flex: 0 0 auto;
+	width: 22px;
+	height: 22px;
+	margin: 0;
+	accent-color: var(--dealer-brand);
+}
+
+.claim-submit {
+	display: block;
+	width: 100%;
+	min-height: 48px;
+	margin-top: 16px;
+	padding: 12px 16px;
+	border: 0;
+	border-radius: 12px;
+	background: var(--dealer-brand);
+	color: var(--dealer-brand-contrast);
+	font-size: 1rem;
+	font-weight: 700;
+	cursor: pointer;
+}
+
+.claim-submit:disabled {
+	opacity: 0.55;
+	cursor: progress;
+}
+
+/* --------------------------------------------------------- board status -- */
+
+.status-list {
+	list-style: none;
+	margin: 12px 0 0;
+	padding: 0;
+	display: grid;
+	gap: 8px;
+}
+
+.status-row {
+	display: flex;
+	align-items: baseline;
+	justify-content: space-between;
+	gap: 12px;
+	padding: 8px 10px;
+	border: 1px solid var(--board-line);
+	border-radius: 10px;
+	font-size: 0.875rem;
+}
+
+.status-row__label {
+	color: var(--board-muted);
+}
+
+.status-row__value {
+	font-weight: 700;
+	font-variant-numeric: tabular-nums;
+	text-align: right;
+}
+
+.status-badge {
+	display: inline-block;
+	padding: 2px 10px;
+	border-radius: 999px;
+	background: var(--dealer-brand);
+	color: var(--dealer-brand-contrast);
+	font-size: 0.75rem;
+	font-weight: 700;
+	text-transform: uppercase;
+	letter-spacing: 0.04em;
+}
+
+/* -------------------------------------------------------------- prizes -- */
+
+.prize-list {
+	list-style: none;
+	margin: 12px 0 0;
+	padding: 0;
+	display: grid;
+	gap: 12px;
+}
+
+.prize {
+	padding: 12px;
+	border: 1px solid var(--board-line);
+	border-left: 4px solid var(--dealer-brand);
+	border-radius: 10px;
+}
+
+.prize__period {
+	margin: 0;
+	font-size: 0.6875rem;
+	font-weight: 700;
+	letter-spacing: 0.06em;
+	text-transform: uppercase;
+	color: var(--board-muted);
+}
+
+.prize__label {
+	margin: 2px 0 0;
+	font-size: 1rem;
+	font-weight: 700;
+}
+
+.prize__value {
+	margin: 2px 0 0;
+	font-size: 0.8125rem;
+	color: var(--board-muted);
+	font-variant-numeric: tabular-nums;
+}
+
+.prize__terms {
+	margin: 6px 0 0;
+	font-size: 0.75rem;
+	color: var(--board-muted);
+}
+
+.prize__winner {
+	margin: 8px 0 0;
+	padding: 6px 8px;
+	border-radius: 8px;
+	background: var(--board-mine);
+	color: #05603a;
+	font-size: 0.8125rem;
+	font-weight: 700;
+}
+
+/* --------------------------------------------------------------- rules -- */
+
+.rules__body {
+	margin: 8px 0 0;
+	white-space: pre-line;
+	font-size: 0.75rem;
+	color: var(--board-muted);
+}
+
+.claim-footer {
+	margin: 0;
+	padding: 8px;
+	text-align: center;
+	font-size: 0.75rem;
+	color: var(--board-muted);
+}
+
+/* --------------------------------------------------------- wider screens -- */
+
+@media (min-width: 480px) {
+	.claim-shell {
+		padding: 24px 16px 56px;
+	}
+
+	.claim-page {
+		--square-min: 38px;
+		--axis-size: 34px;
+	}
+
+	.square {
+		min-height: 40px;
+		font-size: 10px;
+		border-radius: 8px;
+	}
+
+	.board-grid td {
+		padding: 2px;
+	}
+
+	.field-grid {
+		grid-template-columns: 1fr 1fr;
+	}
+
+	.claim-submit {
+		width: auto;
+		min-width: 240px;
+	}
+
+	.prize-list {
+		grid-template-columns: 1fr 1fr;
+	}
+}
+
+@media (min-width: 640px) {
+	.claim-title {
+		font-size: 1.875rem;
+	}
+}

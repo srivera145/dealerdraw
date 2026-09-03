@@ -67,9 +67,13 @@ class Game
         return $statement->fetchAll();
     }
 
+    /** A game window is considered over this long after kickoff even if the feed never said final. */
+    public const MAX_GAME_WINDOW_HOURS = 8;
+
     /**
      * Games the sync job should ask the feed about: kickoff is close or passed,
-     * the game is not final yet, and nobody has taken manual control of it.
+     * the game is not final yet, and nobody has taken manual control of it. The
+     * trailing window stops a feed that never posts a final from polling forever.
      */
     public static function pendingFeedSync(int $preKickoffMinutes = 15): array
     {
@@ -78,6 +82,7 @@ class Game
              WHERE scores_source = 'feed'
                AND status <> 'final'
                AND kickoff_at <= DATE_ADD(NOW(), INTERVAL :pre_kickoff_minutes MINUTE)
+               AND kickoff_at >= DATE_SUB(NOW(), INTERVAL " . self::MAX_GAME_WINDOW_HOURS . " HOUR)
              ORDER BY kickoff_at ASC, id ASC"
         );
         $statement->bindValue(':pre_kickoff_minutes', $preKickoffMinutes, PDO::PARAM_INT);

@@ -32,6 +32,12 @@ class Database
                     PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
                     PDO::ATTR_EMULATE_PREPARES => false,
                 ]);
+
+                // Align the server clock with PHP's. Datetimes written by the app
+                // are compared against NOW() in scheduling queries, so the two
+                // must agree; a numeric offset works without the MySQL tz tables.
+                $offset = (new \DateTimeImmutable('now'))->format('P');
+                self::$instance->exec("SET time_zone = '{$offset}'");
             } catch (PDOException $e) {
                 error_log('[Keel] DB connection failed: ' . $e->getMessage());
                 throw new PDOException('Database connection failed.');

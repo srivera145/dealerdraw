@@ -37,7 +37,10 @@ export default defineConfig({
   build: {
     outDir: 'public_html/assets',
     manifest: true,
-    emptyOutDir: true,
+    // The claim page ships hand-written board.css/board.js under this same
+    // directory, so the build must not wipe it. Vite's own output is hashed
+    // into assets/ and .vite/, which it still overwrites in place.
+    emptyOutDir: false,
     rollupOptions: {
       input: {
         app: 'resources/js/app.js',
