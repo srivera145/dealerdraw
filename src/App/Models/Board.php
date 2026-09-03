@@ -38,6 +38,7 @@ class Board
             'SELECT b.*, c.tenant_id, c.name AS campaign_name, c.public_slug,
                     g.league, g.home_team, g.away_team, g.kickoff_at, g.status AS game_status,
                     g.scores_source, g.last_synced_at,
+                    g.sync_alert, g.sync_failure_count, g.last_sync_error, g.last_sync_error_at,
                     g.q1_home_score, g.q1_away_score, g.q2_home_score, g.q2_away_score,
                     g.q3_home_score, g.q3_away_score, g.q4_home_score, g.q4_away_score,
                     g.final_home_score, g.final_away_score

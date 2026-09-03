@@ -135,6 +135,18 @@ foreach ($wins as $win) {
 
                 <div class="card">
                     <h2 class="text-lg font-semibold text-gray-900">Scores</h2>
+
+                    <?php if ((int) ($board['sync_alert'] ?? 0) === 1): ?>
+                    <div class="alert alert-error mt-3 px-4 py-3">
+                        <p class="font-semibold">The score feed is not answering for this game.</p>
+                        <p class="text-sm">
+                            <?= (int) $board['sync_failure_count'] ?> failed attempts in a row.
+                            <?= empty($board['last_sync_error']) ? '' : htmlspecialchars((string) $board['last_sync_error']) ?>
+                            Enter the scores by hand below if kickoff is close.
+                        </p>
+                    </div>
+                    <?php endif; ?>
+
                     <?php if ($isManual): ?>
                     <p class="mt-2 text-sm text-gray-500">This game is on manual scoring. The feed no longer writes to it.</p>
                     <?php else: ?>

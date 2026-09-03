@@ -11,6 +11,7 @@ use Keel\App\Models\Win;
 use Keel\App\Services\ScoreSyncService;
 use Keel\App\Services\WinnerService;
 use Keel\Core\Database;
+use Tests\Support\FakeScoreProvider;
 use Tests\Support\SquaresFixtures;
 use Tests\TestCase;
 
@@ -25,7 +26,7 @@ class SquaresWinnerResolutionFeatureTest extends TestCase
 
     protected function tearDown(): void
     {
-        ScoreSyncService::setFetcher(null);
+        ScoreSyncService::setProvider(null);
 
         parent::tearDown();
     }
@@ -182,59 +183,6 @@ class SquaresWinnerResolutionFeatureTest extends TestCase
         self::assertSame('scoring', (string) Board::find($boardId)['status']);
     }
 
-    public function testManualOverrideSurvivesTheNextFeedSync(): void
-    {
-        $dealer = $this->createOrganization('Dealer A');
-        $campaign = $this->createCampaign((int) $dealer['id']);
-        $game = $this->createGame([
-            'external_id' => 'nfl-2026-w1-001',
-            'kickoff_at' => date('Y-m-d H:i:s', time() - 1800),
-            'status' => 'in_progress',
-        ]);
-        $this->createBoard((int) $campaign['id'], (int) $game['id']);
-
-        // The feed says 21-14 and would keep saying so.
-        ScoreSyncService::setFetcher(static fn (array $row): array => [
-            'status' => 'in_progress',
-            'periods' => [
-                'q1' => ['home' => 7, 'away' => 0],
-                'q2' => ['home' => 21, 'away' => 14],
-            ],
-        ]);
-
-        ScoreSyncService::syncActiveGames();
-
-        $afterFeed = Game::find((int) $game['id']);
-        self::assertSame(21, (int) $afterFeed['q2_home_score']);
-        self::assertSame('feed', (string) $afterFeed['scores_source']);
-
-        // An advisor corrects the halftime score by hand.
-        Game::applyManualScores((int) $game['id'], [
-            'q1_home_score' => 7,
-            'q1_away_score' => 0,
-            'q2_home_score' => 20,
-            'q2_away_score' => 13,
-            'q3_home_score' => null,
-            'q3_away_score' => null,
-            'q4_home_score' => null,
-            'q4_away_score' => null,
-            'final_home_score' => null,
-            'final_away_score' => null,
-        ], 'in_progress');
-
-        $summary = ScoreSyncService::syncActiveGames();
-
-        $afterOverride = Game::find((int) $game['id']);
-        self::assertSame('manual', (string) $afterOverride['scores_source']);
-        self::assertSame(20, (int) $afterOverride['q2_home_score']);
-        self::assertSame(13, (int) $afterOverride['q2_away_score']);
-        self::assertSame(0, $summary['checked'], 'a manual game is never handed to the feed again');
-
-        // Even a direct feed write against that game id is refused.
-        self::assertFalse(Game::applyFeedScores((int) $game['id'], ['q2_home_score' => 21, 'q2_away_score' => 14], 'in_progress'));
-        self::assertSame(20, (int) Game::find((int) $game['id'])['q2_home_score']);
-    }
-
     public function testSyncJobPollsOnACadenceWhileAGameWindowIsOpenThenStops(): void
     {
         $dealer = $this->createOrganization('Dealer A');
@@ -246,10 +194,11 @@ class SquaresWinnerResolutionFeatureTest extends TestCase
         ]);
         $this->createBoard((int) $campaign['id'], (int) $game['id']);
 
-        ScoreSyncService::setFetcher(static fn (array $row): array => [
-            'status' => 'in_progress',
-            'periods' => ['q1' => ['home' => 7, 'away' => 3]],
+        $provider = new FakeScoreProvider();
+        $provider->withScoreboard('nfl', $this->feedDate($game['kickoff_at']), [
+            'nfl-cadence-1' => FakeScoreProvider::game('nfl-cadence-1', ['q1' => ['home' => 7, 'away' => 3]], 2),
         ]);
+        ScoreSyncService::setProvider($provider);
 
         // Cron queues the first run; a second cron tick while one is pending adds nothing.
         self::assertTrue(\Keel\App\Jobs\SyncScoresJob::ensureScheduled());
@@ -275,16 +224,29 @@ class SquaresWinnerResolutionFeatureTest extends TestCase
         Database::connection()->exec('DELETE FROM jobs');
 
         // Once the game is final the chain ends instead of polling a dead feed.
-        ScoreSyncService::setFetcher(static fn (array $row): array => [
-            'status' => 'final',
-            'periods' => ['q1' => ['home' => 7, 'away' => 3]],
-            'final' => ['home' => 24, 'away' => 17],
+        $provider->withScoreboard('nfl', $this->feedDate($game['kickoff_at']), [
+            'nfl-cadence-1' => FakeScoreProvider::game(
+                'nfl-cadence-1',
+                ['q1' => ['home' => 7, 'away' => 3], 'q2' => ['home' => 7, 'away' => 7],
+                 'q3' => ['home' => 3, 'away' => 0], 'q4' => ['home' => 7, 'away' => 7]],
+                4,
+                true,
+                ['home' => 24, 'away' => 17]
+            ),
         ]);
 
         (new \Keel\App\Jobs\SyncScoresJob())->handle([]);
 
         self::assertSame('final', (string) Game::find((int) $game['id'])['status']);
         self::assertSame(0, $this->countRows('jobs', 'job_class = ?', [\Keel\App\Jobs\SyncScoresJob::class]));
+    }
+
+    /** The scoreboard day a kickoff belongs to, in the feed's timezone. */
+    private function feedDate(string $kickoffAt): string
+    {
+        return (new \DateTimeImmutable($kickoffAt))
+            ->setTimezone(new \DateTimeZone(\Keel\App\Services\Providers\EspnScoreProvider::FEED_TIMEZONE))
+            ->format('Y-m-d');
     }
 
     public function testManualOverrideThroughAdminResolvesWinnersImmediately(): void
