@@ -66,7 +66,19 @@ class NotifyWinnerJob implements Job
         $emailResult = $this->deliverEmail($win);
 
         $delivered = $smsResult['status'] === 'sent' || $emailResult['status'] === 'sent';
-        $error = $smsResult['error'] ?? $emailResult['error'];
+
+        // Report both channels: an SMS error must not hide why the email failed.
+        $errors = [];
+
+        if ($smsResult['error'] !== null) {
+            $errors[] = 'sms: ' . $smsResult['error'];
+        }
+
+        if ($emailResult['error'] !== null) {
+            $errors[] = 'email: ' . $emailResult['error'];
+        }
+
+        $error = $errors === [] ? null : implode('; ', $errors);
 
         Win::recordDelivery($winId, [
             'sms_message_uuid' => $smsResult['message_uuid'],

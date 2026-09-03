@@ -1,330 +1,264 @@
-<picture>
-   <source media="(prefers-color-scheme: dark)" srcset="resources/images/brand/keel-light.png">
-   <img src="resources/images/brand/keel.png" alt="Keel - open-source PHP starter kit">
-</picture>
+# DealerDraw
 
-# Keel
+Free-entry promotional games for car dealerships. A dealer creates a game board tied to a real
+football game, attaches their own service offers as prizes, and shares one link; customers claim
+squares for free and the dealer collects opted-in phone numbers and email addresses. Squares is the
+first game type — spin-to-win, scratch-offs, brackets and punch cards are planned, and the schema is
+built so they slot in rather than get bolted on.
 
-Santos Rivera's PHP starter kit. A consistent foundation for new SaaS projects: custom MVC, OTP + Magic Link auth (no passwords, ever), a mailer, and Composer + npm/Vite wired together.
+Dealers subscribe at $199/month per rooftop. Customers never pay anything, ever.
+
+> **The free-entry constraint is not a config option.** There is no setting that adds an entry fee,
+> requires a purchase, or hides the "No purchase necessary" disclosure. That is deliberate — it is
+> what keeps a board a sweepstakes rather than a lottery. See [docs/COMPLIANCE.md](docs/COMPLIANCE.md).
+
+---
 
 ## Stack
 
-- PHP 8.2, custom MVC (no framework dependency)
-- MySQL via PDO
-- Tailwind CSS + Vite (npm)
-- Vanilla JS
-- PHPMailer (SMTP + log driver)
-- Stripe Checkout + Billing Portal for subscription billing
-- Local/private file storage abstraction
-- Anthropic API wrapper for text, JSON, and image-assisted prompts
-- DB-backed queue worker for async jobs
-- Optional one-organization-per-user multi-tenancy layer
-- OTP and/or Magic Link auth — toggle in `.env`
-- CSRF protection, request throttling, and branded error pages
+| Piece | Version / choice | Notes |
+| --- | --- | --- |
+| PHP | 8.2+ | Uses `match`, enums-as-const arrays, readonly promotion |
+| MySQL | 8.0+ | Needs `JSON` columns and `ON DUPLICATE KEY UPDATE` |
+| Framework | [Keel](composer.json) — in-repo MVC | Custom router, no Laravel/Symfony |
+| Front end | Vanilla JS + Tailwind (admin) / hand-written CSS (public) | No framework, no jQuery |
+| SMS | Plivo REST API | Winner notifications, inbound STOP |
+| Scores | ESPN public scoreboard | No API key; one request per league-day |
+| Queue | MySQL `jobs` table, polled by a PHP worker | No Redis, no Horizon |
+| Mail | PHPMailer over SMTP, or a local log driver | |
 
-## Directory structure
+---
 
-```
-public_html/       Web root. Only this folder is exposed by the server.
-  index.php         Front controller — every request enters here.
-  assets/           Built CSS/JS output (npm run build). Git-ignored.
-  uploads/           User-uploaded files.
-src/
-  Core/              Framework internals: Router, Request, Response, Database,
-                                 Session, View, Mailer, Vite, Env, Controller, Middleware,
-                                 Csrf, RateLimiter, ErrorHandler, Storage.
-  App/
-    Controllers/      Your route handlers.
-    Middleware/        Route guards (AuthMiddleware included).
-    Models/            Thin data-access classes.
-      Services/          Business logic (OtpService, MagicLinkService, AiService).
-routes/
-  web.php            All routes are registered here.
-views/               Plain PHP templates. No templating engine —
-                      views/partials/head.php + one file per page, same as
-                      the pattern you've used across keel/Mise/ShiftDeduct.
-resources/
-  css/app.css        Tailwind entry point.
-  js/app.js           JS entry point.
-database/
-   migrations/         Plain .sql files, run with `php database/migrate.php`.
-   migrate.php         CLI runner for pending SQL migrations.
-   queue-work.php      CLI worker for queued jobs.
-storage/logs/         App logs (error_log target if you wire one in).
-storage/app/          Private uploaded files, not web-accessible.
-```
+## Quick start
 
-## Setup
-
-1. **Install dependencies**
-   ```
-   composer install
-   npm install
-   ```
-
-2. **Environment**
-   ```
-   cp .env.example .env
-   ```
-   Fill in `DB_*`, `MAIL_*`, and set `APP_URL` to wherever this is served locally (e.g. `http://keel.local` following your existing local-dev pattern, or `http://localhost:8000`).
-
-   Fastest local auth smoke test without SMTP setup:
-
-   ```
-   MAIL_MAILER=log
-   ```
-
-   Then request an OTP or magic link and read `storage/logs/mail.log` for the code or URL.
-
-   Quick troubleshooting for `MAIL_MAILER=log`:
-
-   ```text
-   [2026-07-10 02:58:48] MAIL_MAILER=log
-   To: you@example.com <you@example.com>
-   Subject: Your verification code
-
-   Text Body:
-   Keel App verification code
-   Use this code to sign in. It expires in 10 minutes.
-   315638
-   ```
-
-   For OTP, use the 6-digit code in `Text Body`.
-   For magic-link auth, open the `/auth/magic?token=...&email=...` URL logged in the same entry.
-
-3. **Database**
-   ```
-   php database/migrate.php
-   ```
-   This creates the configured database automatically if it does not exist yet, runs any pending SQL files in `database/migrations/`, records them in a `migrations` table, and creates `users`, `auth_tokens`, and any later starter-kit tables such as `subscriptions`.
-   Your `DB_USERNAME` must have permission to create databases on the target MySQL server.
-
-   Security-related tables such as `rate_limits` are created by later migrations the same way.
-
-4. **File storage + AI config**
-   Add these to `.env` for upload handling and Anthropic-powered features:
-
-   ```
-   FILESYSTEM_DISK=local
-   FILESYSTEM_MAX_UPLOAD_MB=10
-   FILESYSTEM_ALLOWED_EXTENSIONS=pdf,jpg,jpeg,png,heic
-   ANTHROPIC_API_KEY=
-   ANTHROPIC_MODEL=claude-sonnet-4-5
-   ```
-
-   Public uploads are stored under `public_html/uploads/`. Private uploads are stored under `storage/app/` and are only served through authenticated controller checks.
-
-5. **Optional multi-tenancy**
-
-   ```env
-   MULTI_TENANCY_ENABLED=false
-   ```
-
-   Leave this `false` and Keel behaves exactly as it does today. Set it to `true` for one organization per user, invite-based teammate onboarding, org admin settings, and a platform-level super-admin area.
-
-6. **Stripe billing (optional, but included in the kit)**
-   Add these to `.env` when you want to test or ship subscription billing:
-
-   ```
-   STRIPE_SECRET_KEY=
-   STRIPE_PUBLISHABLE_KEY=
-   STRIPE_WEBHOOK_SECRET=
-   STRIPE_PRICE_PRO_MONTHLY=
-   ```
-
-   For local webhook testing, use the Stripe CLI:
-
-   ```
-   stripe listen --forward-to keel.local/webhooks/stripe
-   ```
-
-   Stripe prints a temporary signing secret. Put that value into `STRIPE_WEBHOOK_SECRET` locally instead of using a live dashboard secret.
-
-7. **Choose your auth method**
-   In `.env`:
-
-   ```
-   AUTH_METHOD=otp          # OTP only
-   AUTH_METHOD=magic_link   # Magic link only
-   AUTH_METHOD=both         # Both, with a tab switcher on the login page
-   ```
-
-8. **Local vhost (XAMPP), same pattern as keel.local**
-
-   a. Copy this project into `C:\xampp\htdocs\keel` (so the front controller lives at `C:\xampp\htdocs\keel\public_html\index.php`).
-
-   b. Add to `C:\Windows\System32\drivers\etc\hosts`:
-      ```
-      127.0.0.1 keel.local
-      ```
-
-   c. Add to `C:\xampp\apache\conf\extra\httpd-vhosts.conf`:
-      ```
-      <VirtualHost *:80>
-          ServerName keel.local
-          DocumentRoot "C:/xampp/htdocs/keel/public_html"
-          <Directory "C:/xampp/htdocs/keel/public_html">
-              Options Indexes FollowSymLinks
-              AllowOverride All
-              Require all granted
-          </Directory>
-      </VirtualHost>
-      ```
-      `AllowOverride All` is required — without it, `public_html/.htaccess` is ignored and every route except `/` 404s.
-
-   d. Confirm `httpd-vhosts.conf` is loaded — in `C:\xampp\apache\conf\httpd.conf` there should be an uncommented `Include conf/extra/httpd-vhosts.conf`. If you already have `keel.local` working, this is already done.
-
-   e. Restart Apache from the XAMPP control panel.
-
-   f. Set `APP_URL=http://keel.local` in `.env`.
-
-   `public_html/.htaccess` is already in the project — it rewrites any request that isn't a real file to `index.php`, which is what lets `/login`, `/dashboard`, etc. resolve through the router instead of 404ing.
-
-9. **Run the asset pipeline**
-   ```
-   npm run dev
-   ```
-   This starts the Vite dev server and writes `public_html/hot`, which the PHP `Vite` helper detects automatically to serve unbuilt assets with HMR — no code change needed to switch between dev and build. Stop the dev server and it cleans that file up on its own. Apache serves the PHP as usual at `http://keel.local`; Vite only serves the JS/CSS.
-
-   For production: `npm run build`, then just visit `http://keel.local` — the `Vite` helper reads `public_html/assets/.vite/manifest.json` automatically. No dev server needed.
-
-## Optional Docker setup (for contributors not using XAMPP)
-
-XAMPP + `keel.local` remains the primary documented workflow. Docker is provided as an optional path for contributors.
-
-1. Start services:
-
-   ```bash
-   docker compose up --build
-   ```
-
-2. Install dependencies inside the app container if needed:
-
-   ```bash
-   docker compose exec app composer install
-   docker compose exec app npm install
-   ```
-
-3. Run migrations against the `db` service:
-
-   ```bash
-   docker compose exec app php database/migrate.php
-   ```
-
-4. Visit `http://localhost:8080`.
-
-In Docker, app database host is wired to `db` in `docker-compose.yml`.
-
-## How auth works
-
-- **OTP**: 6-digit code, hashed with `password_hash()`, expires in 10 minutes, rate-limited to 5 requests per 15 minutes per user.
-- **Magic Link**: 32-byte random token, hashed with SHA-256, expires in 15 minutes, single-use, same rate limit.
-- Both write to `auth_tokens`. A successful verify creates a session (`Session::put('user_id', ...)`), regenerates the session ID, and redirects to `/dashboard`.
-- `AuthMiddleware` guards any route group that needs a logged-in user — see `routes/web.php` for the pattern.
-
-## Billing
-
-- Billing uses Stripe-hosted Checkout and the Stripe Billing Portal only. Keel never handles raw card data directly.
-- `BillingService` starts Checkout sessions, opens Billing Portal sessions, and syncs local subscription state from Stripe webhooks.
-- `POST /webhooks/stripe` verifies the `Stripe-Signature` header with `STRIPE_WEBHOOK_SECRET` before updating the local `subscriptions` table.
-- `SubscriptionMiddleware` is available for projects built on Keel that need to gate features behind an active or trialing subscription.
-
-## Files and AI
-
-- `Storage` validates uploaded files by actual MIME type using `finfo`, not by trusting client-supplied content types.
-- Executable-adjacent extensions are rejected even if they appear in the configured allowed-extension list.
-- Private files are never served directly from disk; they flow through `GET /files/{id}` and an ownership check first.
-- `AiService` wraps Anthropic's Messages API with plain `curl`, supports text completions, JSON-only responses, and image + prompt requests.
-
-## Organizations
-
-- Multi-tenancy is opt-in through `MULTI_TENANCY_ENABLED`.
-- When enabled, users belong to at most one organization via `users.organization_id`, with roles stored directly on `users.role`.
-- New users without an organization are routed to `/onboarding/organization` after login.
-- Organization owners and admins can invite teammates by email. Invite tokens are hashed at rest, single-use, and expiring.
-- Invite emails are queued for background delivery by `database/queue-work.php` so invite requests do not block HTTP responses.
-- `is_super_admin` is a manual database flag for the platform operator and is never self-assignable through the UI.
-
-## Queue worker
-
-- Keel includes a simple database-backed queue (`jobs` and `failed_jobs`) with no Redis or external broker.
-- Push work with `Keel\Core\Queue::push(...)`; process jobs with the worker script below.
-- OTP and magic-link delivery intentionally stay synchronous so sign-in remains immediate and predictable.
-
-Run one pass (for cron):
+Paste these in order. Nothing needs editing between steps.
 
 ```bash
-php database/queue-work.php --once
+git clone <repo-url> dealerdraw
+cd dealerdraw
+composer install
+npm install && npm run build
+cp .env.example .env
+php database/migrate.php
+php scripts/seed-demo.php
+php -S 127.0.0.1:8000 -t public_html scripts/dev-server.php
 ```
 
-Run continuously (for supervised workers):
+`database/migrate.php` creates the database itself if the MySQL user has permission, so there is no
+separate "create database" step.
+
+Then open <http://127.0.0.1:8000>. Two things to know:
+
+- **Set `APP_URL=http://127.0.0.1:8000` in `.env`** if you use the built-in server. The seeder and
+  the marketing pages build absolute links from it, and Plivo signature verification depends on it.
+- **Sign in** at `/login` as `owner@demo.test`. With `MAIL_MAILER=log` the code and magic link are
+  written to `storage/logs/mail.log` — no SMTP account needed.
+
+Why `scripts/dev-server.php` and not `public_html/index.php`? The app's front controller handles
+every request it is given, so used directly as a router the built-in server never serves
+`/assets/...` and the CSS 404s. The shim hands existing files back to the server, which is what
+nginx and Apache do in production.
+
+---
+
+## Environment variables
+
+Full list with comments in [.env.example](.env.example). The ones that matter:
+
+| Key | Required to boot | Purpose |
+| --- | --- | --- |
+| `APP_URL` | **yes** | Absolute base URL. Canonical tags, sitemap, and Plivo signature verification all derive from it — a wrong value breaks webhooks silently |
+| `APP_ENV` | no (`local`) | `production` disables debug output and blocks the demo seeder |
+| `DB_HOST` `DB_PORT` `DB_DATABASE` `DB_USERNAME` `DB_PASSWORD` `DB_CHARSET` | **yes** | Connection. The pool also pins MySQL's session timezone to PHP's |
+| `MULTI_TENANCY_ENABLED` | **yes** (`true`) | Must stay true; every dealer is an organization and all admin queries are tenant-scoped |
+| `MAIL_MAILER` | no (`log`) | `log` writes to `storage/logs/mail.log`; use `smtp` in production |
+| `MAIL_HOST` `MAIL_PORT` `MAIL_USERNAME` `MAIL_PASSWORD` `MAIL_ENCRYPTION` `MAIL_FROM_ADDRESS` `MAIL_FROM_NAME` | only with `smtp` | Outbound mail |
+| `PLIVO_AUTH_ID` | no locally | Plivo account id. Blank means SMS is skipped and email still sends |
+| `PLIVO_AUTH_TOKEN` | no locally | Plivo secret. Also the HMAC key for webhook signature verification |
+| `PLIVO_SRC_NUMBER` | no locally | Sending number in E.164, e.g. `+15555550100` |
+| `PLIVO_STATUS_CALLBACK_URL` | no | Delivery-status webhook. Blank means `APP_URL` + `/webhooks/plivo/status` |
+| `SMS_DEFAULT_COUNTRY_CODE` | no (`1`) | Assumed for claim-form numbers typed without a prefix |
+| `SCORES_FEED_USER_AGENT` | no | Override only if ESPN starts 403ing the built-in default |
+| `LEAD_NOTIFICATION_EMAIL` | no | Where marketing-site demo requests go. Falls back to `MAIL_FROM_ADDRESS` |
+| `AUTH_METHOD` | no (`both`) | `otp`, `magic_link` or `both` for dealer sign-in |
+
+There is no score-provider toggle in env. The provider is selected in
+`ScoreSyncService::provider()`; see Architecture below.
+
+---
+
+## Architecture
+
+### Why `campaign_types` exists
+
+`campaigns` is deliberately game-agnostic. It holds the tenant, the name, the status, the public
+slug and the branding — nothing about squares. What kind of game a campaign runs is one foreign key,
+`campaign_type_id`, pointing at a seeded row in `campaign_types` (`squares` today).
+
+Everything squares-specific hangs off `boards`, which is the *instance* table for that game type:
+`boards` → `squares` → `claims`, `prizes`, `wins`.
+
+**To add a new game type**, e.g. spin-to-win:
+
+1. Insert a row in `campaign_types` (`slug`, `name`, `active`). Nothing in `campaigns` changes.
+2. Create an instance table for it — `wheels`, say — with a `campaign_id`, the same way `boards` has one.
+3. Give it its own service (the equivalent of `BoardLockService` / `WinnerService`) and its own
+   admin controller under `src/App/Controllers/Admin/`.
+4. Branch on `campaign_type_slug` where a campaign is rendered, not inside the squares code.
+
+**The one honest caveat:** `claims`, `prizes` and `wins` currently carry `board_id`, so they are tied
+to the squares instance table. A second game type that needs its own entrants or prizes will need
+either its own tables or a migration adding a polymorphic `instance_type`/`instance_id` pair. That
+was a deliberate trade for a simpler first build — do not discover it late.
+
+### Layout
+
+```
+src/App/Models/          One class per table. Static methods, arrays in and out, no ORM.
+src/App/Services/        Game logic: BoardLockService, WinnerService, ScoreSyncService.
+src/App/Services/Sms/    PlivoClient, PhoneNumber (E.164).
+src/App/Services/Providers/  ScoreProvider interface + EspnScoreProvider.
+src/App/Jobs/            Queue jobs: SyncScoresJob, NotifyWinnerJob.
+src/App/Console/Commands/    CLI commands. Thin runners live in scripts/.
+src/App/Content/         Marketing copy registry (FAQ + guides).
+src/Core/                Keel framework. Touch sparingly.
+views/                   admin/, public/, emails/.
+```
+
+Tenancy rule: every admin-facing model read takes a `$tenantId` and joins through `campaigns`.
+There is deliberately no `Board::findById()` without one. Public routes resolve the tenant from the
+campaign slug and nothing else.
+
+---
+
+## Key flows
+
+### 1. Claim → lock → digit assignment
+
+A customer opens `/p/{slug}`, taps open squares and submits name, email, mobile and a consent box.
+`Square::assign()` is a conditional `UPDATE ... WHERE claim_id IS NULL`, so of two people submitting
+the same square exactly one wins; the loser's whole submission rolls back and the response names the
+squares that went, leaving their other picks selected.
+
+The row and column digits **do not exist** until the board locks. The columns are null, the JSON
+payload sends `"digits": null`, and the grid renders blank axis headers. At kickoff
+`ScoreSyncService::lockBoardsAtKickoff()` (or the admin lock button) calls `BoardLockService::lock()`,
+which shuffles 0–9 with `random_int` — not `shuffle()` — writes both arrays, and flips the board to
+`locked`. Locking is one-way: a second lock is refused so digits can never be redrawn under claims
+that are already public.
+
+### 2. Period close → winner resolution → notification
+
+`SyncScoresJob` polls ESPN every 60s while a game window is open, grouped one request per
+league-day. A period is only written once it has **closed** (the feed moved past it, or the game
+ended), and scores are stored cumulatively — end-of-quarter running totals, not per-quarter points.
+
+When a period newly closes, `WinnerService::resolveBoard()` runs. Orientation is fixed everywhere:
+**rows carry the home digit, columns the away digit**. A 24–17 final resolves to the square whose row
+digit is 4 and column digit is 7 — the same cell the claim page highlights.
+
+Resolution is idempotent via a unique index on `(board_id, scoring_period)`. Re-running creates zero
+rows. An unclaimed winning square still produces a win row with a null claimant, flagged for the
+dealer; nothing is notified because there is nobody to notify.
+
+A claimed win queues `NotifyWinnerJob`, which takes an atomic claim on `notified_at` before sending,
+so a re-run cannot text anyone twice. SMS and email are independent — a suppressed or failed text
+never stops the email.
+
+### 3. Manual score override
+
+An advisor edits scores on the board admin page. `Game::applyManualScores()` flips `scores_source`
+to `manual`, permanently. From then on the game is invisible to the feed: `Game::pendingFeedSync()`
+will not select it, and `Game::applyFeedScores()` carries `AND scores_source = 'feed'` in its `WHERE`
+clause, so even a job queued before the override cannot clobber it. Winner resolution runs
+immediately after the override.
+
+---
+
+## Local development without live games
+
+This is the section that saves the most time in July.
 
 ```bash
-php database/queue-work.php
+# A complete tenant: dealership, user, campaign, board, four prizes, claims.
+php scripts/seed-demo.php --fresh --full     # --full claims all 100 squares
+php scripts/board.php list                   # find the board id
+
+php scripts/board.php show   --board=1       # digits, scores, prizes, winners
+php scripts/board.php lock   --board=1       # draw the digits, close entries
+php scripts/board.php score  --board=1 --period=q1 --home=7 --away=3
+php scripts/board.php score  --board=1 --period=final --home=24 --away=17
+php scripts/board.php resolve --board=1      # re-run resolution on its own
+php database/queue-work.php --once           # deliver the queued notifications
 ```
 
-### Deployment options
+`score` writes through the same manual-override path an advisor uses in admin, so this exercises
+real code rather than a test-only back door. It resolves winners automatically after each score.
+Scoring the `final` period marks the game final, which is what lets the final prize pay out.
 
-1. Cron (simple, low volume): run `php database/queue-work.php --once` every minute.
-2. Supervised long-running process (higher volume/lower latency): run `php database/queue-work.php` under systemd or Supervisor.
+Use `--full` when you want to see the notification path: digits are shuffled at lock time, so on a
+partly-claimed board most periods land on an unclaimed square — correct behaviour, but a poor demo.
+With all 100 squares claimed every period resolves to a real winner.
 
-Keel does not install process supervision for you; choose the option that fits your hosting environment.
+With `MAIL_MAILER=log`, winner emails land in `storage/logs/mail.log`. With Plivo blank, SMS is
+skipped and recorded as `not_configured` — the email still sends and the win is marked notified.
 
-## Activity log seeding (local/dev)
+---
 
-Use this helper to generate repeatable sample data for the activity pages:
+## Console commands
+
+| Command | Purpose | Cadence |
+| --- | --- | --- |
+| `php database/migrate.php` | Apply pending SQL migrations. Creates the database if absent | On deploy |
+| `php database/migrate.php --pretend` | List what would run, apply nothing | Before deploy |
+| `php database/queue-work.php` | Long-running queue worker | Always, under a supervisor |
+| `php database/queue-work.php --once` | Drain currently available jobs and exit | Local, or cron fallback |
+| `php database/dispatch-score-sync.php` | Queue a score-sync run if one is not already pending | Cron, every minute |
+| `php scripts/sync-games.php --league=nfl --week=1` | Import a week's schedule from ESPN. Upserts on `external_id`; never touches scores or a manual override | Weekly, per league |
+| `php scripts/seed-demo.php [--fresh] [--full]` | Build a demo tenant. Refuses to run with `APP_ENV=production` | Local only |
+| `php scripts/board.php <list\|show\|lock\|score\|resolve>` | Drive a board by hand | Local, and for support |
+| `php scripts/dev-server.php` | Router shim for `php -S` so static files serve | Local only |
+| `composer test:all` | Rebuild the test database and run every test | Before every commit |
+
+`sync-games.php` also takes `--season=YYYY` (defaults by month) and `--type=1|2|3`
+(pre/regular/post).
+
+---
+
+## Testing
 
 ```bash
-php database/seed-activity.php
+composer test:all        # rebuilds keel_test, then runs Unit + Feature
+composer test:feature    # feature suite only
+vendor/bin/phpunit --filter Squares
 ```
 
-Options:
+Feature tests dispatch through the real router against a real MySQL database (`keel_test`, from
+`.env.testing`), so they cover routing, middleware, views and SQL together.
 
-- `--count=50` number of rows to generate (default 30, max 500)
-- `--email=activity-seed@example.com` user email to seed under
-- `--org-id=1` include an organization id on seeded rows
-- `--append` keep prior seeded rows instead of replacing them
+**Covered:** tenant isolation on every admin route; digits absent before lock; winner orientation and
+idempotency; claim races and the per-person limit; score-sync batching, period-close semantics,
+malformed payloads and feed backoff; the manual-override guarantee; notification idempotency,
+tenant-wide SMS opt-out and credential redaction; Plivo webhook signature verification; the
+marketing site, lead capture and spam guards; sitemap/robots/JSON-LD.
 
-The script is intentionally blocked outside local/dev/testing environments.
+**Deliberately not covered:** live Plivo sends and live ESPN calls (both are behind injectable
+transports and faked in tests — the real endpoints were verified by hand, see the notes in
+`EspnScoreProvider`); browser rendering and JavaScript behaviour; email rendering in real clients;
+load and concurrency beyond the single-writer square race.
 
-## Security and Errors
+---
 
-- State-changing requests are protected by CSRF tokens. The shared head partial outputs a `csrf-token` meta tag, and forms can use `\Keel\Core\Csrf::field()`.
-- Auth-related endpoints sit behind an IP-based throttle keyed by client IP and route path.
-- Webhook routes stay outside CSRF and throttle middleware because they are verified by third-party signatures instead.
-- Missing routes render a branded 404 page, and uncaught exceptions render a branded 500 page.
-- `public_html/index.php` sets baseline headers on every response: `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, and `Referrer-Policy: strict-origin-when-cross-origin`.
+## Deployment
 
-## Health checks
+See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) — server requirements, cron and worker setup, the Plivo
+callback URL, SSL, and rollback.
 
-- `GET /up` is an unauthenticated health endpoint for load balancers and uptime monitors.
-- It returns `200` with `{"status":"ok","database":true}` when DB connectivity succeeds.
-- It returns `503` with `{"status":"ok","database":false}` when the database cannot be reached.
+## Compliance
 
-## Testing and CI
+See [docs/COMPLIANCE.md](docs/COMPLIANCE.md) — the rules the code enforces, and why. It documents
+implementation, not legal advice.
 
-- Unit and feature tests live in `tests/` and run with PHPUnit.
-- Run locally with `./vendor/bin/phpunit` (or `vendor\\bin\\phpunit` on Windows).
-- GitHub Actions (`.github/workflows/ci.yml`) runs on every push and pull request:
-   - PHP 8.2 setup
-   - MySQL service
-   - `composer install`
-   - SQL migrations
-   - `npm install && npm run build`
-   - PHPUnit
+---
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for contribution and PR expectations.
-
-## Adding a new project from this kit
-
-1. Copy the whole folder, rename it.
-2. Update `composer.json` (`name`), `package.json` (`name`), `.env` (`APP_NAME`, `APP_URL`, `DB_DATABASE`).
-3. Add controllers to `src/App/Controllers/`, register routes in `routes/web.php`, add views under `views/`.
-4. Keep business logic in `src/App/Services/`, keep controllers thin — same separation you've used on keel and PulseIQ.
-
-## Notes / things you might want to add per-project
-
-- No query builder — raw PDO with prepared statements throughout. Add one if a project needs it.
-- No CLI/scaffolding generator (no `php keel make:controller` yet). Can add if it'd save time across projects.
-- Sessions are native PHP sessions, not DB-backed. Fine for single-server; revisit if you ever load-balance across multiple app servers.
-- Mail templates are inline HTML strings in the services for now — pull them into `views/emails/` if they grow.
+DealerDraw™ is a product of EchoDial LLC.
