@@ -4,12 +4,19 @@ declare(strict_types=1);
 
 namespace Tests\Feature;
 
-use Keel\App\Controllers\DocsController;
 use Tests\TestCase;
 
+/**
+ * Transport-level checks on the three discovery endpoints.
+ *
+ * These previously asserted the Keel starter kit's own sitemap, robots and
+ * llms.txt, which described a PHP framework. This domain serves DealerDraw, so
+ * they now assert that and that the framework's docs are no longer published.
+ * The content of each file is covered in detail by SeoDiscoverabilityFeatureTest.
+ */
 class PublicDiscoveryEndpointsFeatureTest extends TestCase
 {
-    public function testSitemapIncludesPublicPagesAndExpandedDocsButNotProtectedOrPatternRoutes(): void
+    public function testSitemapIsServedAsXmlAndCoversOnlyMarketingPages(): void
     {
         $response = $this->get('/sitemap.xml');
 
@@ -19,25 +26,18 @@ class PublicDiscoveryEndpointsFeatureTest extends TestCase
         $baseUrl = rtrim((string) ($_ENV['APP_URL'] ?? 'http://localhost'), '/');
 
         self::assertStringContainsString('<loc>' . $baseUrl . '/</loc>', $response->body);
-        self::assertStringContainsString('<loc>' . $baseUrl . '/docs</loc>', $response->body);
-        self::assertStringContainsString('<loc>' . $baseUrl . '/login</loc>', $response->body);
+        self::assertStringContainsString('<loc>' . $baseUrl . '/faq</loc>', $response->body);
 
-        foreach (DocsController::docsPages() as $page) {
-            $slug = (string) ($page['slug'] ?? '');
-            if ($slug === '') {
-                continue;
-            }
-
-            self::assertStringContainsString('<loc>' . $baseUrl . '/docs/' . $slug . '</loc>', $response->body);
-        }
-
-        self::assertStringNotContainsString('/docs/{slug}', $response->body);
-        self::assertStringNotContainsString('<loc>' . $baseUrl . '/dashboard</loc>', $response->body);
-        self::assertStringNotContainsString('<loc>' . $baseUrl . '/settings/api-tokens</loc>', $response->body);
-        self::assertStringNotContainsString('<loc>' . $baseUrl . '/api/v1/files</loc>', $response->body);
+        // Route patterns, protected areas and the framework docs stay out.
+        self::assertStringNotContainsString('{', $response->body);
+        self::assertStringNotContainsString('/dashboard', $response->body);
+        self::assertStringNotContainsString('/settings/', $response->body);
+        self::assertStringNotContainsString('/api/', $response->body);
+        self::assertStringNotContainsString('/docs', $response->body);
+        self::assertStringNotContainsString('/login', $response->body);
     }
 
-    public function testRobotsTxtReflectsProtectedPrefixesFromRegisteredRoutes(): void
+    public function testRobotsIsServedAsPlainTextAndProtectsTheApplication(): void
     {
         $response = $this->get('/robots.txt');
 
@@ -46,40 +46,28 @@ class PublicDiscoveryEndpointsFeatureTest extends TestCase
 
         self::assertStringContainsString("User-agent: *\n", $response->body);
         self::assertStringContainsString("Allow: /\n", $response->body);
-        self::assertStringContainsString("Disallow: /api/\n", $response->body);
-        self::assertStringContainsString("Disallow: /billing/\n", $response->body);
-        self::assertStringContainsString("Disallow: /dashboard\n", $response->body);
-        self::assertStringContainsString("Disallow: /files/\n", $response->body);
-        self::assertStringContainsString("Disallow: /settings/\n", $response->body);
 
-        self::assertStringNotContainsString('Disallow: /docs', $response->body);
-        self::assertStringNotContainsString('Disallow: /login', $response->body);
+        foreach (['/api/', '/billing/', '/dashboard', '/files/', '/settings/', '/admin/', '/p/'] as $path) {
+            self::assertStringContainsString('Disallow: ' . $path . "\n", $response->body);
+        }
+
+        // Keel's framework docs are not DealerDraw content and are excluded now.
+        self::assertStringContainsString('Disallow: /docs', $response->body);
 
         $baseUrl = rtrim((string) ($_ENV['APP_URL'] ?? 'http://localhost'), '/');
         self::assertStringContainsString('Sitemap: ' . $baseUrl . '/sitemap.xml', $response->body);
     }
 
-    public function testLlmsTxtUsesSharedDocsRegistryLinks(): void
+    public function testLlmsTxtDescribesDealerDrawRatherThanTheFramework(): void
     {
         $response = $this->get('/llms.txt');
 
         self::assertSame(200, $response->status);
         self::assertStringContainsString('text/plain', (string) $response->header('Content-Type'));
-        self::assertStringContainsString('# Keel', $response->body);
-        self::assertStringContainsString('## Docs', $response->body);
 
-        $baseUrl = rtrim((string) ($_ENV['APP_URL'] ?? 'http://localhost'), '/');
-
-        foreach (DocsController::docsPages() as $page) {
-            $slug = (string) ($page['slug'] ?? '');
-            $title = (string) ($page['title'] ?? '');
-
-            if ($slug === '' || $title === '') {
-                continue;
-            }
-
-            $expected = '- [' . $title . '](' . $baseUrl . '/docs/' . $slug . ')';
-            self::assertStringContainsString($expected, $response->body);
-        }
+        self::assertStringContainsString('# DealerDraw', $response->body);
+        self::assertStringNotContainsString('# Keel', $response->body);
+        self::assertStringNotContainsString('starter kit', $response->body);
+        self::assertStringNotContainsString('/docs/', $response->body);
     }
 }

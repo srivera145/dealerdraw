@@ -392,6 +392,7 @@ abstract class TestCase extends PhpUnitTestCase
             'files',
             'games',
             'jobs',
+            'leads',
             'organization_invites',
             'organizations',
             'prize_library',

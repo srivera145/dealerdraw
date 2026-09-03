@@ -6,86 +6,94 @@ use Keel\Core\Controller;
 use Keel\Core\Env;
 use Keel\Core\Request;
 use Keel\Core\Response;
-use Keel\Core\Router;
 
+/**
+ * robots.txt for the marketing site.
+ *
+ * AI crawlers are allowed deliberately. Blocking them does not protect anything
+ * here - the marketing pages are public either way - it only removes DealerDraw
+ * from the answers those assistants give when a dealer asks them about
+ * dealership promotions. The things worth keeping out of an index are customer
+ * claim pages and the dealer admin, and those are disallowed for everyone.
+ */
 class RobotsController extends Controller
 {
-    private const PROTECTED_MIDDLEWARE = [
-        \Keel\App\Middleware\AuthMiddleware::class,
-        \Keel\App\Middleware\RequireOrganizationMiddleware::class,
-        \Keel\App\Middleware\RequireOrgAdminMiddleware::class,
-        \Keel\App\Middleware\RequireSuperAdminMiddleware::class,
-        \Keel\App\Middleware\ApiAuthMiddleware::class,
+    /**
+     * Never indexable: customer-facing claim pages carry entrants' names, and
+     * the admin is behind auth anyway.
+     */
+    private const DISALLOWED = [
+        '/admin/',
+        '/p/',
+        '/api/',
+        '/dashboard',
+        '/settings/',
+        '/super-admin/',
+        '/billing/',
+        '/onboarding/',
+        '/files/',
+        '/webhooks/',
+        '/login',
+        '/auth/',
+        '/invite/',
+        // Keel's own framework documentation ships with the starter kit and has
+        // nothing to do with DealerDraw; keeping it out avoids indexing pages
+        // that would confuse both a dealer and a crawler.
+        '/docs',
+    ];
+
+    /**
+     * Crawlers explicitly welcomed. Split between assistants that answer
+     * questions live and crawlers that gather training data - a dealer asking
+     * an assistant "are dealership squares boards legal" should be able to
+     * reach this site's answer.
+     */
+    private const AI_CRAWLERS = [
+        'GPTBot',
+        'OAI-SearchBot',
+        'ChatGPT-User',
+        'ClaudeBot',
+        'Claude-User',
+        'PerplexityBot',
+        'Perplexity-User',
+        'Google-Extended',
+        'Applebot-Extended',
+        'CCBot',
+        'meta-externalagent',
     ];
 
     public function index(Request $request): never
     {
-        $disallowPrefixes = $this->disallowPrefixes();
-        $baseUrl = $this->baseUrl();
+        $lines = [];
 
-        $lines = [
-            'User-agent: *',
-            'Allow: /',
-        ];
+        foreach (self::AI_CRAWLERS as $crawler) {
+            $lines[] = 'User-agent: ' . $crawler;
+            $lines[] = 'Allow: /';
 
-        foreach ($disallowPrefixes as $prefix) {
-            $lines[] = 'Disallow: ' . $prefix;
+            foreach (self::DISALLOWED as $path) {
+                $lines[] = 'Disallow: ' . $path;
+            }
+
+            $lines[] = '';
+        }
+
+        $lines[] = 'User-agent: *';
+        $lines[] = 'Allow: /';
+
+        foreach (self::DISALLOWED as $path) {
+            $lines[] = 'Disallow: ' . $path;
         }
 
         $lines[] = '';
-        $lines[] = 'Sitemap: ' . $baseUrl . '/sitemap.xml';
+        $lines[] = 'Sitemap: ' . $this->baseUrl() . '/sitemap.xml';
 
         Response::raw(implode("\n", $lines) . "\n", 200, ['Content-Type' => 'text/plain; charset=UTF-8']);
-    }
-
-    private function disallowPrefixes(): array
-    {
-        $router = Router::current();
-        $prefixes = [];
-
-        foreach (($router?->registeredRoutes() ?? []) as $route) {
-            $middleware = (array) ($route['middleware'] ?? []);
-            $isProtected = count(array_intersect($middleware, self::PROTECTED_MIDDLEWARE)) > 0;
-
-            if (!$isProtected) {
-                continue;
-            }
-
-            $prefix = $this->prefixForUri((string) ($route['uri'] ?? '/'));
-            if ($prefix === '/') {
-                continue;
-            }
-
-            $prefixes[$prefix] = true;
-        }
-
-        $prefixes = array_keys($prefixes);
-        sort($prefixes, SORT_STRING);
-
-        return $prefixes;
-    }
-
-    private function prefixForUri(string $uri): string
-    {
-        $segments = array_values(array_filter(explode('/', trim($uri, '/')), static fn (string $segment): bool => $segment !== ''));
-
-        if ($segments === []) {
-            return '/';
-        }
-
-        if (count($segments) === 1) {
-            return $segments[0] === 'dashboard'
-                ? '/dashboard'
-                : '/' . $segments[0] . '/';
-        }
-
-        return '/' . $segments[0] . '/';
     }
 
     private function baseUrl(): string
     {
         $baseUrl = trim((string) Env::get('APP_URL', ''));
 
-        return $baseUrl !== '' ? rtrim($baseUrl, '/') : 'http://localhost';
+        return $baseUrl !== '' ? rtrim($baseUrl, '/') : 'https://dealerdraw.com';
     }
 }

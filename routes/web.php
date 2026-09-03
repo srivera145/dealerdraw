@@ -5,6 +5,7 @@ use Keel\App\Controllers\Admin\CampaignController;
 use Keel\App\Controllers\Admin\PrizeController;
 use Keel\App\Controllers\Admin\WinController;
 use Keel\App\Controllers\Public\ClaimController;
+use Keel\App\Controllers\Public\SiteController;
 use Keel\App\Controllers\Webhooks\PlivoStatusController;
 use Keel\App\Controllers\AuthController;
 use Keel\App\Controllers\ActivityController;
@@ -44,7 +45,15 @@ $router->get('/robots.txt', [RobotsController::class, 'index']);
 $router->get('/llms.txt', [LlmsTxtController::class, 'index']);
 
 $router->group(['middleware' => [CsrfMiddleware::class]], function ($router) use ($multiTenancyEnabled) {
-    $router->get('/', [WelcomeController::class, 'index'], ['sitemap' => true]);
+    // dealerdraw.com marketing site. WelcomeController is the Keel starter page
+    // and is intentionally no longer routed.
+    $router->get('/', [SiteController::class, 'home'], ['sitemap' => true]);
+    $router->get('/demo', [SiteController::class, 'demo'], ['sitemap' => true]);
+    $router->post('/request-demo', [SiteController::class, 'leadSubmit']);
+    $router->get('/faq', [SiteController::class, 'faq'], ['sitemap' => true]);
+    $router->get('/guides', [SiteController::class, 'guides'], ['sitemap' => true]);
+    $router->get('/guides/{slug}', [SiteController::class, 'guide']);
+
     $router->get('/docs', [DocsController::class, 'index'], ['sitemap' => true]);
     $router->get('/docs/{slug}', [DocsController::class, 'show']);
 
