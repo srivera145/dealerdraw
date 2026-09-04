@@ -5,6 +5,9 @@
  * disagrees with site.css will flash and then change, which is a layout shift.
  */
 :root{--ink:#0f172a;--ink-muted:#4b5563;--ink-soft:#6b7280;--line:#dfe3e9;--surface:#fff;--surface-alt:#f5f6f8;--brand:#16543f;--brand-bright:#1c9c6b;--brand-ink:#fff;--radius:14px;--shell:1080px}
+/* Dark tokens. Mirrors site.css - keep both in sync. */
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--ink:#e7ecf3;--ink-muted:#a3adbb;--ink-soft:#8792a2;--line:#2b3542;--surface:#0e141b;--surface-alt:#161e27;--brand:#2fae7c;--brand-bright:#45c894;--brand-ink:#06120d}}
+:root[data-theme="dark"]{--ink:#e7ecf3;--ink-muted:#a3adbb;--ink-soft:#8792a2;--line:#2b3542;--surface:#0e141b;--surface-alt:#161e27;--brand:#2fae7c;--brand-bright:#45c894;--brand-ink:#06120d}
 *{box-sizing:border-box}
 html{-webkit-text-size-adjust:100%}
 body{margin:0;background:var(--surface);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;font-size:17px;line-height:1.6}
@@ -19,11 +22,20 @@ p{margin:0 0 16px}
 .eyebrow{margin:0 0 8px;font-size:.75rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--brand-bright)}
 .skip-link{position:absolute;left:-9999px;top:0;background:var(--ink);color:#fff;padding:10px 16px;z-index:20}
 .skip-link:focus{left:8px;top:8px}
-.nav{position:sticky;top:0;z-index:10;background:rgba(255,255,255,.96);border-bottom:1px solid var(--line)}
+.nav{position:sticky;top:0;z-index:10;background:color-mix(in srgb,var(--surface) 96%,transparent);border-bottom:1px solid var(--line)}
 .nav__inner{display:flex;align-items:center;justify-content:space-between;gap:16px;min-height:60px}
 .wordmark{display:inline-flex;align-items:baseline;gap:2px;font-size:1.125rem;font-weight:800;letter-spacing:-.03em;color:var(--ink);text-decoration:none}
 .wordmark__mark{color:var(--brand-bright)}
 .nav__links{display:none}
+.nav__actions{display:flex;align-items:center;gap:12px}
+.theme-toggle{display:inline-flex;align-items:center;justify-content:center;width:40px;height:40px;padding:0;border:1px solid var(--line);border-radius:999px;background:transparent;color:var(--ink-muted);cursor:pointer}
+.theme-toggle[hidden]{display:none}
+.theme-toggle svg{width:18px;height:18px}
+.theme-toggle__sun{display:none}
+:root[data-theme="dark"] .theme-toggle__moon{display:none}
+:root[data-theme="dark"] .theme-toggle__sun{display:inline}
+.visually-hidden{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
+.nav__signin{color:var(--ink-muted);text-decoration:none;font-size:.9375rem;font-weight:600;white-space:nowrap;padding:6px 2px}
 .btn{display:inline-flex;align-items:center;justify-content:center;min-height:48px;padding:12px 22px;border:2px solid transparent;border-radius:999px;font-size:1rem;font-weight:700;text-decoration:none;cursor:pointer;text-align:center}
 .btn--primary{background:var(--brand);color:var(--brand-ink)}
 .btn--ghost{background:transparent;color:var(--brand);border-color:var(--line)}
@@ -35,6 +47,9 @@ p{margin:0 0 16px}
 .hero__note{font-size:.8125rem;color:var(--ink-soft);margin:0}
 .hero__shot{margin:28px 0 0}
 /* aspect-ratio pins the box before the file arrives, so the hero cannot shift. */
+.hero__shot--dark{display:none}
+:root[data-theme="dark"] .hero__shot--light{display:none}
+:root[data-theme="dark"] .hero__shot--dark{display:block}
 .hero__shot img{display:block;width:100%;aspect-ratio:900/1200;border:1px solid var(--line);border-radius:var(--radius)}
 .prose{max-width:68ch}
 .prose h2{margin-top:32px}

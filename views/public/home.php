@@ -44,8 +44,17 @@ $schemaTypes = ['organization', 'software'];
             </div>
 
             <figure class="hero__shot">
-                <img src="/assets/images/board-preview.png"
+                <!--
+                    Two real screenshots, one per theme, swapped in CSS rather
+                    than with <picture media>: the theme can also be set by the
+                    toggle, which a media query would not follow. The hidden one
+                    carries alt="" so a screen reader announces the board once.
+                -->
+                <img class="hero__shot--light" src="/assets/images/board-preview.png"
                      alt="A DealerDraw game board on a phone, with customer first names and last initials filling about a third of the hundred squares."
+                     width="900" height="1200" loading="eager" decoding="async">
+                <img class="hero__shot--dark" src="/assets/images/board-preview-dark.png"
+                     alt="" aria-hidden="true"
                      width="900" height="1200" loading="eager" decoding="async">
                 <figcaption>An actual board, as your customer sees it on their phone.</figcaption>
             </figure>

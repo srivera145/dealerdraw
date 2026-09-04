@@ -81,6 +81,109 @@ class MarketingSiteFeatureTest extends TestCase
         self::assertStringNotContainsString('tel:', strtolower($body));
     }
 
+    public function testEveryPageOffersReturningDealersAWayToSignIn(): void
+    {
+        foreach (['/', '/demo', '/faq', '/guides'] as $path) {
+            $body = $this->get($path)->body;
+
+            self::assertStringContainsString('href="/login"', $body, $path . ' has no sign-in link');
+        }
+
+        // /login is passwordless and doubles as sign-up: an unknown email
+        // creates the account and onboarding collects the dealership.
+        self::assertSame(200, $this->get('/login')->status);
+    }
+
+    public function testSignInScreenIsDealerDrawBrandedAndSelfContained(): void
+    {
+        $body = $this->get('/login')->body;
+
+        // DealerDraw's own design system, not the Keel starter kit's.
+        self::assertStringContainsString('/assets/css/site.css', $body);
+        self::assertStringContainsString('Dealer<span class="wordmark__mark">Draw</span>', $body);
+        self::assertStringContainsString('<title>Sign in - DealerDraw</title>', $body);
+
+        foreach (['keel-icon', 'keel-auth', 'resources/js/app.js'] as $leftover) {
+            self::assertStringNotContainsString($leftover, $body, 'Keel styling remnant: ' . $leftover);
+        }
+
+        // Themed like the rest of the site, and it says out loud that a new
+        // email is welcome - this page is the sign-up path too.
+        self::assertStringContainsString('data-theme-toggle', $body);
+        self::assertStringContainsString("localStorage.getItem('keel-theme')", $body);
+        self::assertStringContainsString('New to DealerDraw?', $body);
+
+        // Sign-in must not be indexed, but should still pass link equity home.
+        self::assertStringContainsString('<meta name="robots" content="noindex,follow">', $body);
+    }
+
+    public function testSignInScreenKeepsTheHooksTheAuthFlowDependsOn(): void
+    {
+        $body = $this->get('/login')->body;
+
+        // Restyling must not break the endpoints or the element ids the page
+        // script drives. Both auth methods are on by default.
+        foreach (['otp-email', 'otp-send', 'otp-step-code', 'otp-code', 'otp-verify',
+                  'magic-email', 'magic-send', 'magic-sent', 'auth-error'] as $id) {
+            self::assertStringContainsString('id="' . $id . '"', $body, 'missing hook: ' . $id);
+        }
+
+        foreach (['/auth/otp/request', '/auth/otp/verify', '/auth/magic/request'] as $endpoint) {
+            self::assertStringContainsString($endpoint, $body);
+        }
+
+        // The tab component it used to import from Keel is now local to the page.
+        self::assertStringContainsString('data-tab-target', $body);
+        self::assertStringContainsString('role="tablist"', $body);
+
+        // Every input is labelled.
+        preg_match_all('#<input[^>]*\sid="([^"]+)"#', $body, $inputs);
+
+        foreach ($inputs[1] as $id) {
+            self::assertStringContainsString('for="' . $id . '"', $body, 'no label for #' . $id);
+        }
+    }
+
+    public function testExpiredMagicLinkTellsTheUserWhatHappened(): void
+    {
+        // AuthController redirects here with this code; the old page swallowed
+        // it and showed nothing at all.
+        $body = $this->get('/login?error=invalid_link')->body;
+
+        self::assertStringContainsString('That sign-in link is invalid or has expired', $body);
+
+        $inviteBody = $this->get('/login?error=invalid_invite')->body;
+        self::assertStringContainsString('That invite link is invalid', $inviteBody);
+
+        // No stray message when nothing went wrong. The #auth-error element is
+        // always in the DOM for the script to fill, so assert on the copy
+        // rather than on the class.
+        $clean = $this->get('/login')->body;
+        self::assertStringNotContainsString('That sign-in link is invalid', $clean);
+        self::assertStringNotContainsString('That invite link is invalid', $clean);
+        self::assertMatchesRegularExpression('#<p id="auth-error"[^>]*\shidden#', $clean);
+    }
+
+    public function testSignInIsReachableOnAPhoneAndStaysSubordinateToTheDemoCta(): void
+    {
+        $body = $this->get('/')->body;
+
+        // .nav__links is display:none below 900px, so a sign-in link placed
+        // inside it would be invisible on exactly the device dealers use.
+        preg_match('#<nav class="nav__links".*?</nav>#s', $body, $collapsed);
+        self::assertNotEmpty($collapsed[0] ?? '', 'the collapsing nav block is missing');
+        self::assertStringNotContainsString('/login', $collapsed[0], 'sign-in must not live in the collapsing nav');
+
+        preg_match('#<div class="nav__actions">.*?</div>#s', $body, $actions);
+        self::assertNotEmpty($actions[0] ?? '', 'the always-visible nav actions block is missing');
+        self::assertStringContainsString('href="/login"', $actions[0]);
+        self::assertStringContainsString('href="/#request-demo"', $actions[0]);
+
+        // Sign-in is a text link; the demo remains the only button.
+        self::assertStringContainsString('class="nav__signin" href="/login"', $actions[0]);
+        self::assertStringNotContainsString('btn', substr($actions[0], 0, (int) strpos($actions[0], '/login')));
+    }
+
     public function testComplianceBandAnswersTheLegalQuestionPlainly(): void
     {
         $body = $this->get('/')->body;
@@ -131,12 +234,24 @@ class MarketingSiteFeatureTest extends TestCase
             $previous = max($previous, (int) $level);
         }
 
-        // Every image carries alt text.
+        // Every image carries alt text. An empty alt is allowed only on an
+        // image that is also aria-hidden - the dark-theme copy of the hero
+        // screenshot, which would otherwise be announced twice.
         preg_match_all('#<img[^>]*>#', $body, $images);
         self::assertNotEmpty($images[0]);
 
         foreach ($images[0] as $image) {
-            self::assertMatchesRegularExpression('#\salt="[^"]+"#', $image, 'image without alt text: ' . $image);
+            self::assertMatchesRegularExpression('#\salt="#', $image, 'image with no alt attribute: ' . $image);
+
+            if (preg_match('#\salt="[^"]+"#', $image) === 1) {
+                continue;
+            }
+
+            self::assertStringContainsString(
+                'aria-hidden="true"',
+                $image,
+                'an image with an empty alt must be hidden from assistive tech: ' . $image
+            );
         }
 
         // Every visible input has a label bound to it.
@@ -162,7 +277,17 @@ class MarketingSiteFeatureTest extends TestCase
 
         $weight = strlen($body);
 
-        foreach (['/assets/css/site.css', '/assets/js/site.js', '/assets/images/board-preview.png'] as $asset) {
+        // Both hero screenshots load: the theme can change after paint, so the
+        // matching one cannot be chosen server-side.
+        $assets = [
+            '/assets/css/site.css',
+            '/assets/js/site.js',
+            '/assets/js/theme.js',
+            '/assets/images/board-preview.png',
+            '/assets/images/board-preview-dark.png',
+        ];
+
+        foreach ($assets as $asset) {
             self::assertFileExists($root . $asset);
             $weight += filesize($root . $asset);
         }

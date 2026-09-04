@@ -2,6 +2,7 @@
     <div class="shell">
         <ul class="footer__links">
             <li><a href="/demo">See a live board</a></li>
+            <li><a href="/login">Dealer sign-in</a></li>
             <li><a href="/faq">FAQ</a></li>
             <li><a href="/guides">Guides</a></li>
             <li><a href="/#legal">Is it legal</a></li>

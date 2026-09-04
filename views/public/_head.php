@@ -65,10 +65,36 @@ $stylesheet = $assetVersion('/assets/css/site.css');
 <meta name="theme-color" content="#16543f">
 <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
 
+<!--
+    Theme resolution, inline and synchronous so the attribute is on <html>
+    before the first paint - a deferred script here would flash the wrong
+    palette. Order: a signed-in user's server preference, then this browser's
+    stored choice, then the OS setting. Shares the 'keel-theme' key with the
+    dealer admin, so a preference set in one carries to the other.
+-->
+<script>
+(function () {
+	var stored = null;
+	try { stored = localStorage.getItem('keel-theme'); } catch (e) { stored = null; }
+
+	var server = document.documentElement.getAttribute('data-theme');
+	var theme = server || stored;
+
+	if (theme !== 'light' && theme !== 'dark') {
+		theme = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches
+			? 'dark'
+			: 'light';
+	}
+
+	document.documentElement.setAttribute('data-theme', theme);
+})();
+</script>
+
 <!-- Above-the-fold CSS inlined; the rest loads without blocking the render. -->
 <style><?= $criticalCss ?></style>
 <link rel="preload" as="style" href="<?= htmlspecialchars($stylesheet) ?>" onload="this.onload=null;this.rel='stylesheet'">
 <noscript><link rel="stylesheet" href="<?= htmlspecialchars($stylesheet) ?>"></noscript>
 
+<script src="<?= htmlspecialchars($assetVersion('/assets/js/theme.js')) ?>" defer></script>
 <script src="<?= htmlspecialchars($assetVersion('/assets/js/site.js')) ?>" defer></script>
 <?php require __DIR__ . '/../partials/schema.php'; ?>

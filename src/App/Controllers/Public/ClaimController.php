@@ -23,6 +23,9 @@ use Keel\Core\Storage;
 class ClaimController extends Controller
 {
     private const MAX_CLAIM_POSTS_PER_IP = 10;
+
+    /** Rec. 601 luma a brand colour must reach to be legible on the dark theme. */
+    private const MIN_DARK_THEME_LUMA = 0.45;
     private const CLAIM_DECAY_MINUTES = 60;
 
     public function show(Request $request, string $slug): void
@@ -56,6 +59,10 @@ class ClaimController extends Controller
             'logoUrl' => $campaign['brand_logo_path'] ? Storage::url((string) $campaign['brand_logo_path']) : null,
             'brandColor' => $brandColor,
             'brandContrast' => $this->contrastInk($brandColor),
+            // A dark dealer colour disappears against a dark page, so the
+            // theme gets its own readable variant of the same hue.
+            'brandColorDark' => $this->brandForDarkTheme($brandColor),
+            'brandContrastDark' => $this->contrastInk($this->brandForDarkTheme($brandColor)),
             'notice' => (string) $request->input('notice', ''),
             'error' => (string) $request->input('error', ''),
             // Cells this visitor just claimed, plus - on a conflict bounce - the
@@ -445,6 +452,41 @@ class ClaimController extends Controller
         $luma = (0.299 * $red + 0.587 * $green + 0.114 * $blue) / 255;
 
         return $luma > 0.6 ? '#111827' : '#ffffff';
+    }
+
+    /**
+     * Lightens a brand colour until it reads against a dark background.
+     *
+     * The default #111827 is nearly black - correct on white, invisible on a
+     * dark page. Anything already light enough is returned untouched, so a
+     * dealer who picked a bright colour keeps exactly what they chose.
+     */
+    private function brandForDarkTheme(string $hexColor): string
+    {
+        $red = (int) hexdec(substr($hexColor, 1, 2));
+        $green = (int) hexdec(substr($hexColor, 3, 2));
+        $blue = (int) hexdec(substr($hexColor, 5, 2));
+
+        $luma = static fn (int $r, int $g, int $b): float => (0.299 * $r + 0.587 * $g + 0.114 * $b) / 255;
+
+        if ($luma($red, $green, $blue) >= self::MIN_DARK_THEME_LUMA) {
+            return $hexColor;
+        }
+
+        // Mix toward white in small steps, which keeps the hue and only lifts
+        // the lightness. Bounded so a pure black brand still terminates.
+        for ($step = 1; $step <= 20; $step++) {
+            $mix = $step / 20;
+            $mixedRed = (int) round($red + ((255 - $red) * $mix));
+            $mixedGreen = (int) round($green + ((255 - $green) * $mix));
+            $mixedBlue = (int) round($blue + ((255 - $blue) * $mix));
+
+            if ($luma($mixedRed, $mixedGreen, $mixedBlue) >= self::MIN_DARK_THEME_LUMA) {
+                return sprintf('#%02x%02x%02x', $mixedRed, $mixedGreen, $mixedBlue);
+            }
+        }
+
+        return '#e7ecf3';
     }
 
     private function normalizePhone(string $phone): string

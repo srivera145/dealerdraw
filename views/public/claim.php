@@ -13,6 +13,8 @@ $availableCount = (int) ($availableCount ?? 0);
 $logoUrl = $logoUrl ?? null;
 $brandColor = (string) ($brandColor ?? '#111827');
 $brandContrast = (string) ($brandContrast ?? '#ffffff');
+$brandColorDark = (string) ($brandColorDark ?? $brandColor);
+$brandContrastDark = (string) ($brandContrastDark ?? $brandContrast);
 $notice = (string) ($notice ?? '');
 $error = (string) ($error ?? '');
 $claimedCells = $claimedCells ?? [];
@@ -44,12 +46,54 @@ $prizesSet = array_filter($periods, static fn (string $period): bool => isset($p
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<?php require __DIR__ . '/../partials/head.php'; ?>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title><?= htmlspecialchars((string) ($title ?? $campaign['name'] ?? 'Claim a square'), ENT_QUOTES, 'UTF-8') ?></title>
+<meta name="description" content="<?= htmlspecialchars((string) ($metaDescription ?? 'Claim a free square. No purchase necessary.'), ENT_QUOTES, 'UTF-8') ?>">
+<meta name="robots" content="noindex,nofollow">
+<meta name="theme-color" content="<?= htmlspecialchars($brandColor, ENT_QUOTES) ?>">
+<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+
+<!--
+    Theme resolved before first paint, so a customer opening this on a phone in
+    a dark room never gets a white flash. Same storage key as the dealer admin.
+-->
+<script>
+(function () {
+	var stored = null;
+	try { stored = localStorage.getItem('keel-theme'); } catch (e) { stored = null; }
+
+	var theme = stored === 'light' || stored === 'dark' ? stored : null;
+
+	if (!theme) {
+		theme = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches
+			? 'dark'
+			: 'light';
+	}
+
+	document.documentElement.setAttribute('data-theme', theme);
+})();
+</script>
+
 <link rel="stylesheet" href="<?= htmlspecialchars($assetVersion('/assets/css/board.css')) ?>">
+<script src="<?= htmlspecialchars($assetVersion('/assets/js/theme.js')) ?>" defer></script>
 <script src="<?= htmlspecialchars($assetVersion('/assets/js/board.js')) ?>" defer></script>
 </head>
-<body class="claim-page" style="--dealer-brand: <?= htmlspecialchars($brandColor, ENT_QUOTES) ?>; --dealer-brand-contrast: <?= htmlspecialchars($brandContrast, ENT_QUOTES) ?>;">
+<body class="claim-page" style="--dealer-brand: <?= htmlspecialchars($brandColor, ENT_QUOTES) ?>; --dealer-brand-contrast: <?= htmlspecialchars($brandContrast, ENT_QUOTES) ?>; --dealer-brand-dark: <?= htmlspecialchars($brandColorDark, ENT_QUOTES) ?>; --dealer-brand-dark-contrast: <?= htmlspecialchars($brandContrastDark, ENT_QUOTES) ?>;">
 <main class="claim-shell">
+
+    <button type="button" class="theme-toggle theme-toggle--floating" data-theme-toggle hidden>
+        <svg class="theme-toggle__moon" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"></path>
+        </svg>
+        <svg class="theme-toggle__sun" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <circle cx="12" cy="12" r="4"></circle>
+            <path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"></path>
+        </svg>
+        <span class="visually-hidden" data-theme-toggle-label>Switch colour theme</span>
+    </button>
 
     <header class="claim-header<?= $logoUrl === null ? ' claim-header--plain' : '' ?>">
         <?php if ($logoUrl !== null): ?>
